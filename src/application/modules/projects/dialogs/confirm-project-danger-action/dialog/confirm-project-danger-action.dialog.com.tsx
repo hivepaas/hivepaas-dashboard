@@ -1,43 +1,43 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ProjectAppsCommands } from "~/projects/data/commands";
+import { ProjectsCommands } from "~/projects/data/commands";
 import { QK } from "~/projects/data/constants";
-import { EProjectAppStatus } from "~/projects/module-shared/enums";
+import { EProjectStatus } from "~/projects/module-shared/enums";
 
-import { MODULE_IDS, ROUTE } from "@application/shared/constants";
+import { ROUTE } from "@application/shared/constants";
 import { useAppNavigate } from "@application/shared/hooks/router";
-import { useConditionalModule } from "@application/shared/permissions";
+import { useConditionalProject } from "@application/shared/permissions";
 
-import { ConfirmAppDangerActionForm } from "../form";
-import { useConfirmAppDangerActionDialogState } from "../hooks";
-import type { ConfirmAppDangerActionFormOutput } from "../schemas";
-import { AppDangerAction } from "../types";
+import { ConfirmProjectDangerActionForm } from "../form";
+import { useConfirmProjectDangerActionDialogState } from "../hooks";
+import type { ConfirmProjectDangerActionFormOutput } from "../schemas";
+import { ProjectDangerAction } from "../types";
 
 const dialogTitle = {
-    [AppDangerAction.Disable]: "Disable app",
-    [AppDangerAction.ReEnable]: "Re-enable app",
-    [AppDangerAction.Delete]: "Delete app",
+    [ProjectDangerAction.Disable]: "Disable project",
+    [ProjectDangerAction.ReEnable]: "Re-enable project",
+    [ProjectDangerAction.Delete]: "Delete project",
 } as const;
 
-export function ConfirmAppDangerActionDialog() {
-    const { state, props: dialogOptions, ...actions } = useConfirmAppDangerActionDialogState();
+export function ConfirmProjectDangerActionDialog() {
+    const { state, props: dialogOptions, ...actions } = useConfirmProjectDangerActionDialogState();
     const { navigate } = useAppNavigate();
     const queryClient = useQueryClient();
-    const { canWrite } = useConditionalModule({ id: MODULE_IDS.Project });
 
     const open = state.mode !== "closed";
     const action = state.mode === "open" ? state.action : null;
     const target = state.mode === "open" ? state.target : null;
+    const projectPermissions = useConditionalProject({ projectId: target?.projectId ?? "" });
 
-    const { mutate: updateAppStatus, isPending: isUpdating } = ProjectAppsCommands.useUpdateStatus({
+    const { mutate: updateProjectStatus, isPending: isUpdating } = ProjectsCommands.useUpdateStatus({
         onSuccess: (_response, request) => {
             const nextAction =
-                request.payload.status === EProjectAppStatus.Active
-                    ? AppDangerAction.ReEnable
-                    : AppDangerAction.Disable;
+                request.payload.status === EProjectStatus.Active
+                    ? ProjectDangerAction.ReEnable
+                    : ProjectDangerAction.Disable;
 
-            toast.success(nextAction === AppDangerAction.ReEnable ? "App re-enabled" : "App disabled");
+            toast.success(nextAction === ProjectDangerAction.ReEnable ? "Project re-enabled" : "Project disabled");
             actions.close();
             dialogOptions?.onSuccess?.(nextAction);
         },
@@ -46,18 +46,15 @@ export function ConfirmAppDangerActionDialog() {
         },
     });
 
-    const { mutate: deleteApp, isPending: isDeleting } = ProjectAppsCommands.useDeleteOne({
+    const { mutate: deleteProject, isPending: isDeleting } = ProjectsCommands.useDeleteOne({
         onSuccess: (_response, request) => {
-            toast.success("App deleted");
+            toast.success("Project deleted");
             actions.close();
-            dialogOptions?.onSuccess?.(AppDangerAction.Delete);
-            navigate.modules(ROUTE.projects.single.apps.$route(request.projectID), { ignorePrevPath: true });
+            dialogOptions?.onSuccess?.(ProjectDangerAction.Delete);
+            navigate.modules(ROUTE.projects.list.$route, { ignorePrevPath: true });
             window.setTimeout(() => {
                 queryClient.removeQueries({
-                    queryKey: [
-                        QK["projects.apps.$.find-one-by-id"],
-                        { projectID: request.projectID, appID: request.appID },
-                    ],
+                    queryKey: [QK["projects.$.find-one-by-id"], { projectID: request.projectID }],
                     exact: true,
                 });
             }, 0);
@@ -68,26 +65,26 @@ export function ConfirmAppDangerActionDialog() {
     });
 
     const isPending = isUpdating || isDeleting;
+    const hasRequiredAccess =
+        action === ProjectDangerAction.Delete ? projectPermissions.canDelete : projectPermissions.canWrite;
 
-    function handleSubmit(_values: ConfirmAppDangerActionFormOutput) {
-        if (!canWrite || !target || !action) {
+    function handleSubmit(_values: ConfirmProjectDangerActionFormOutput) {
+        if (!hasRequiredAccess || !target || !action) {
             return;
         }
 
-        if (action === AppDangerAction.Delete) {
-            deleteApp({
+        if (action === ProjectDangerAction.Delete) {
+            deleteProject({
                 projectID: target.projectId,
-                appID: target.appId,
             });
             return;
         }
 
-        updateAppStatus({
+        updateProjectStatus({
             projectID: target.projectId,
-            appID: target.appId,
             payload: {
                 updateVer: target.updateVer,
-                status: action === AppDangerAction.ReEnable ? EProjectAppStatus.Active : EProjectAppStatus.Disabled,
+                status: action === ProjectDangerAction.ReEnable ? EProjectStatus.Active : EProjectStatus.Disabled,
             },
         });
     }
@@ -116,12 +113,12 @@ export function ConfirmAppDangerActionDialog() {
                         <DialogHeader>
                             <DialogTitle className="text-2xl">{dialogTitle[action]}</DialogTitle>
                         </DialogHeader>
-                        <ConfirmAppDangerActionForm
+                        <ConfirmProjectDangerActionForm
                             action={action}
-                            appName={target.appName}
+                            projectName={target.projectName}
                             isPending={isPending}
                             onSubmit={handleSubmit}
-                            readOnly={!canWrite}
+                            readOnly={!hasRequiredAccess}
                         />
                     </>
                 ) : null}
