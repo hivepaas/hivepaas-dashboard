@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { ProjectCommandTemplateCommands } from "~/projects/data/commands";
+import { ProjectCommandPipeCommands } from "~/projects/data/commands";
 import { SettingsScopePermissionAction } from "~/settings/module-shared/components";
 
 import { cn } from "@/lib/utils";
@@ -13,23 +13,23 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import {
-    COMMAND_TEMPLATE_FROM_TEMPLATE_CATALOG,
-    type CommandTemplateFromTemplateSelection,
-} from "./command-template-from-template.catalog";
+    COMMAND_PIPE_FROM_TEMPLATE_CATALOG,
+    type CommandPipeFromTemplateSelection,
+} from "./command-pipe-from-template.catalog";
 
 const PROJECT_SCOPE = { type: "project" } as const;
 
-export function ProjectCommandTemplateFromTemplateMenu({ projectId }: Props) {
+export function ProjectCommandPipeFromTemplateMenu({ projectId }: Props) {
     const [open, setOpen] = useState(false);
 
-    const { mutate: createFromTemplate, isPending } = ProjectCommandTemplateCommands.useCreateFromTemplate({
+    const { mutate: createFromTemplate, isPending } = ProjectCommandPipeCommands.useCreateFromTemplate({
         onSuccess: () => {
-            toast.success("Project Command Template created successfully");
+            toast.success("Project Command Pipe created successfully");
             setOpen(false);
         },
     });
 
-    function handleSelect(selection: CommandTemplateFromTemplateSelection) {
+    function handleSelect(selection: CommandPipeFromTemplateSelection) {
         createFromTemplate({
             projectID: projectId,
             payload: {
@@ -59,7 +59,7 @@ export function ProjectCommandTemplateFromTemplateMenu({ projectId }: Props) {
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                        className="w-[320px] p-2"
+                        className="w-[280px] p-2"
                         align="start"
                     >
                         <Accordion
@@ -67,7 +67,7 @@ export function ProjectCommandTemplateFromTemplateMenu({ projectId }: Props) {
                             collapsible
                             className="w-full"
                         >
-                            {COMMAND_TEMPLATE_FROM_TEMPLATE_CATALOG.map(group => (
+                            {COMMAND_PIPE_FROM_TEMPLATE_CATALOG.map(group => (
                                 <AccordionItem
                                     key={group.commandType}
                                     value={group.commandType}
@@ -77,10 +77,10 @@ export function ProjectCommandTemplateFromTemplateMenu({ projectId }: Props) {
                                         {group.heading}
                                     </AccordionTrigger>
                                     <AccordionContent className="pb-1 pt-0">
-                                        <div className="flex max-h-[280px] flex-col overflow-y-auto">
+                                        <div className="flex flex-col">
                                             {group.items.map(item => (
                                                 <button
-                                                    key={`${item.commandType}:${item.commandKind}`}
+                                                    key={item.commandKind}
                                                     type="button"
                                                     disabled={isPending}
                                                     className={cn(
