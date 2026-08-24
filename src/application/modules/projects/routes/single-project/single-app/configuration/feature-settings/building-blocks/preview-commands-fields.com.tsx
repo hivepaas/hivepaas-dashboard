@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 
-import { Avatar, Button, FieldError } from "@components/ui";
-import { Plus, Trash2 } from "lucide-react";
+import { Button, FieldError } from "@components/ui";
+import { Plus, Terminal, Trash2 } from "lucide-react";
 import { useFieldArray, useFormContext, useFormState } from "react-hook-form";
 import { toast } from "sonner";
-import { ProjectAppsQueries } from "~/projects/data";
+import { ProjectCommandTemplateQueries } from "~/projects/data/queries";
 
-import { AppLink, ComboboxWithAddon, InfoBlock, PopConfirm } from "@application/shared/components";
+import { AppLink, ComboboxWithAddon, InfoBlock, LabelWithInfo, PopConfirm } from "@application/shared/components";
 import { ROUTE } from "@application/shared/constants";
 
 import {
@@ -15,15 +15,14 @@ import {
     FEATURE_SETTINGS_TITLE_WIDTH,
 } from "../schemas";
 
-type AppOption = {
+type CommandOption = {
     id: string;
     name: string;
-    photo?: string;
 };
 
-export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }: Props) {
+export function PreviewCommandsFields({ projectID, readOnly = false }: Props) {
     const [search, setSearch] = useState("");
-    const [selectedApp, setSelectedApp] = useState<AppOption | null>(null);
+    const [selectedCommand, setSelectedCommand] = useState<CommandOption | null>(null);
     const { control } = useFormContext<
         AppFeatureSettingsFormSchemaInput,
         unknown,
@@ -31,76 +30,84 @@ export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }:
     >();
     const { fields, append, remove } = useFieldArray({
         control,
-        name: "previewSettings.appsToClone",
+        name: "previewSettings.commands",
         keyName: "fieldId",
     });
     const { errors } = useFormState<AppFeatureSettingsFormSchemaInput>();
 
-    const appsQuery = ProjectAppsQueries.useFindManyPaginated({
-        projectID,
-        env,
-        search,
-        pagination: {
-            page: 1,
-            size: 20,
+    const commandsQuery = ProjectCommandTemplateQueries.useFindManyPaginated(
+        {
+            projectID,
+            search,
+            pagination: {
+                page: 1,
+                size: 50,
+            },
         },
-    });
+        {
+            enabled: Boolean(projectID),
+        },
+    );
 
     const selectedIds = useMemo(() => new Set(fields.map(field => field.id)), [fields]);
 
     const options = useMemo(
         () =>
-            (appsQuery.data?.data ?? [])
-                .filter(app => app.id !== appID && !selectedIds.has(app.id))
-                .map(app => ({
-                    label: app.name,
+            (commandsQuery.data?.data ?? [])
+                .filter(cmd => !selectedIds.has(cmd.id))
+                .map(cmd => ({
+                    label: cmd.name,
                     value: {
-                        id: app.id,
-                        name: app.name,
-                        photo: app.photo,
+                        id: cmd.id,
+                        name: cmd.name,
                     },
                 })),
-        [appsQuery.data, appID, selectedIds],
+        [commandsQuery.data, selectedIds],
     );
 
-    const fieldError = errors.previewSettings?.appsToClone;
+    const fieldError = errors.previewSettings?.commands;
 
     function handleAdd() {
-        if (readOnly || !selectedApp) {
+        if (readOnly || !selectedCommand) {
             return;
         }
 
-        const exists = fields.some(field => field.id === selectedApp.id);
+        const exists = fields.some(field => field.id === selectedCommand.id);
 
         if (exists) {
-            toast.error(`"${selectedApp.name}" already exists`);
+            toast.error(`"${selectedCommand.name}" already exists`);
             return;
         }
 
-        append(selectedApp);
-        setSelectedApp(null);
+        append(selectedCommand);
+        setSelectedCommand(null);
     }
 
     return (
         <InfoBlock
-            title="DB Apps to Clone"
+            title={
+                <LabelWithInfo
+                    label="Commands to Run on Preview Creation"
+                    content="Command templates to execute inside the current app container when creating a preview (e.g. create remote DB branch, run seed scripts)."
+                />
+            }
             titleWidth={FEATURE_SETTINGS_TITLE_WIDTH}
         >
             <div className="flex max-w-[545px] flex-col gap-2">
                 <div className="flex gap-2">
-                    <ComboboxWithAddon<AppOption>
-                        addonLeft="App"
-                        value={selectedApp?.id}
+                    <ComboboxWithAddon<CommandOption>
+                        addonLeft="Command"
+                        value={selectedCommand?.id}
                         onChange={(_, option) => {
-                            setSelectedApp(option);
+                            setSelectedCommand(option);
                         }}
                         onSearch={setSearch}
-                        onRefresh={() => void appsQuery.refetch()}
-                        isRefreshing={appsQuery.isRefetching}
-                        loading={appsQuery.isLoading}
+                        onRefresh={() => void commandsQuery.refetch()}
+                        isRefreshing={commandsQuery.isRefetching}
+                        loading={commandsQuery.isLoading}
                         valueKey="id"
                         options={options}
-                        placeholder="select app to add"
+                        placeholder="select command template to add"
                         classNameContainer="max-w-[460px]"
                         disabled={readOnly}
                     />
@@ -109,7 +116,7 @@ export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }:
                         type="button"
                         variant="outline"
                         onClick={handleAdd}
-                        disabled={readOnly || !selectedApp}
+                        disabled={readOnly || !selectedCommand}
                     >
                         <Plus className="size-4" /> Add
                     </Button>
@@ -123,16 +130,12 @@ export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }:
                                 className="grid grid-cols-[minmax(0,1fr)_auto_76px] items-center gap-2 py-1.5"
                             >
                                 <div className="flex min-w-0 items-center gap-2">
-                                    <Avatar
-                                        name={field.name}
-                                        src={field.photo}
-                                    />
-                                    <span className="truncate text-sm">{field.name}</span>
+                                    <Terminal className="size-4 shrink-0 text-muted-foreground" />
+                                    <span className="truncate text-sm font-medium">{field.name}</span>
                                 </div>
                                 <AppLink.Basic
-                                    to={ROUTE.projects.single.apps.single.configuration.general.$route(
+                                    to={ROUTE.projects.single.providerConfiguration.commandTemplates.edit.$route(
                                         projectID,
-                                        env,
                                         field.id,
                                     )}
                                     className="shrink-0 text-xs text-link"
@@ -144,11 +147,11 @@ export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }:
                                 </AppLink.Basic>
                                 <div className="flex w-[76px] justify-end">
                                     <PopConfirm
-                                        title="Remove app"
+                                        title="Remove command"
                                         variant="destructive"
                                         confirmText="Remove"
                                         cancelText="Cancel"
-                                        description="Are you sure you want to remove this app?"
+                                        description="Are you sure you want to remove this command template?"
                                         onConfirm={() => {
                                             if (!readOnly) {
                                                 remove(index);
@@ -179,7 +182,5 @@ export function DbAppsToCloneFields({ projectID, env, appID, readOnly = false }:
 
 type Props = {
     projectID: string;
-    env: string;
-    appID: string;
     readOnly?: boolean;
 };
